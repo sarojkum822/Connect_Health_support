@@ -1,6 +1,20 @@
 "use client";
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { auth, db } from '@/lib/firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import {
+    collection,
+    addDoc,
+    query,
+    onSnapshot,
+    orderBy,
+    doc,
+    updateDoc,
+    getDoc,
+    setDoc,
+    serverTimestamp
+} from 'firebase/firestore';
 
 export type UserType = 'USER' | 'PROVIDER';
 
@@ -21,17 +35,17 @@ export interface Request {
         contact: string;
         address: string;
     };
-    createdAt: Date;
+    createdAt: any; // Firestore Timestamp
 }
 
 interface RequestContextType {
     currentUserType: UserType;
     isLoggedIn: boolean;
-    login: (role: UserType) => void;
+    login: (role: UserType) => void; // Kept for compatibility, but mainly handled by Auth
     logout: () => void;
     requests: Request[];
-    addRequest: (request: Omit<Request, 'id' | 'status' | 'createdAt' | 'acceptedBy'>) => void;
-    respondToRequest: (requestId: string, providerDetails: { name: string; contact: string; address: string }) => void;
+    addRequest: (request: Omit<Request, 'id' | 'status' | 'createdAt' | 'acceptedBy'>) => Promise<void>;
+    respondToRequest: (requestId: string, providerDetails: { name: string; contact: string; address: string }) => Promise<void>;
     dismissRequest: (requestId: string) => void;
 }
 
@@ -41,54 +55,98 @@ export function RequestProvider({ children }: { children: ReactNode }) {
     const [currentUserType, setCurrentUserType] = useState<UserType>('USER');
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [requests, setRequests] = useState<Request[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    // Listen for Auth Changes
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+            try {
+                if (user) {
+                    setIsLoggedIn(true);
+                    // Fetch user profile to get role
+                    const userDocRef = doc(db, 'users', user.uid);
+
+                    try {
+                        const userDoc = await getDoc(userDocRef);
+                        if (userDoc.exists()) {
+                            const userData = userDoc.data();
+                            setCurrentUserType(userData.role as UserType);
+                        } else {
+                            setCurrentUserType('USER');
+                        }
+                    } catch (firestoreError) {
+                        console.error("Error fetching user profile:", firestoreError);
+                        // Fallback to default role if DB fails, but keep logged in so they can logout
+                        setCurrentUserType('USER');
+                    }
+                } else {
+                    setIsLoggedIn(false);
+                    setCurrentUserType('USER');
+                }
+            } catch (error) {
+                console.error("Auth state change error:", error);
+            } finally {
+                setLoading(false);
+            }
+        });
+
+        return () => unsubscribe();
+    }, []);
+
+    // Listen for Requests (Real-time)
+    useEffect(() => {
+        const q = query(collection(db, 'requests'), orderBy('createdAt', 'desc'));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const reqs = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            })) as Request[];
+            setRequests(reqs);
+        });
+
+        return () => unsubscribe();
+    }, []);
 
     const login = (role: UserType) => {
+        // This is now mainly a client-side state update helper if needed immediately after login
+        // The actual auth listener handles the source of truth
         setCurrentUserType(role);
-        setIsLoggedIn(true);
     };
 
-    const logout = () => {
-        setIsLoggedIn(false);
-        setCurrentUserType('USER'); // Default back to user
+    const logout = async () => {
+        await signOut(auth);
     };
 
-    // Deprecated: toggleUserType is replaced by login
-    const toggleUserType = () => {
-        console.warn("toggleUserType is deprecated. Use login() instead.");
+    const addRequest = async (newRequest: Omit<Request, 'id' | 'status' | 'createdAt' | 'acceptedBy'>) => {
+        try {
+            await addDoc(collection(db, 'requests'), {
+                ...newRequest,
+                status: 'PENDING',
+                createdAt: serverTimestamp(), // Use server timestamp
+            });
+        } catch (error) {
+            console.error("Error adding request: ", error);
+        }
     };
 
-    const addRequest = (newRequest: Omit<Request, 'id' | 'status' | 'createdAt' | 'acceptedBy'>) => {
-        const request: Request = {
-            ...newRequest,
-            id: Math.random().toString(36).substr(2, 9),
-            status: 'PENDING',
-            createdAt: new Date(),
-        };
-        setRequests(prev => [request, ...prev]);
-    };
-
-    const respondToRequest = (requestId: string, providerDetails: { name: string; contact: string; address: string }) => {
-        setRequests(prev => prev.map(req => {
-            if (req.id === requestId) {
-                return {
-                    ...req,
-                    status: 'ACCEPTED',
-                    acceptedBy: {
-                        id: 'provider-1', // Mock ID
-                        ...providerDetails
-                    }
-                };
-            }
-            return req;
-        }));
+    const respondToRequest = async (requestId: string, providerDetails: { name: string; contact: string; address: string }) => {
+        try {
+            const reqRef = doc(db, 'requests', requestId);
+            await updateDoc(reqRef, {
+                status: 'ACCEPTED',
+                acceptedBy: {
+                    id: auth.currentUser?.uid || 'unknown',
+                    ...providerDetails
+                }
+            });
+        } catch (error) {
+            console.error("Error responding to request: ", error);
+        }
     };
 
     const dismissRequest = (requestId: string) => {
-        // In a real app, this might hide it for this specific provider
-        // For this demo, we'll just leave it as pending but maybe mark it as "seen" locally
-        // Or we could implement a "REJECTED" status if that's the intent
-        // For now, let's just keep it simple
         console.log(`Request ${requestId} dismissed by provider`);
+        // In real app, could add to a 'dismissedBy' array in Firestore
     };
 
     return (
