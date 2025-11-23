@@ -1,31 +1,12 @@
-import Link from "next/link";
-import { ArrowRight, Heart, Activity, Phone } from "lucide-react";
+import { Activity, Heart, Phone } from "lucide-react";
+import { AuroraHero } from "@/components/AuroraHero";
 
 export default function Home() {
   return (
     <div className="flex flex-col min-h-screen">
       {/* Hero Section */}
-      <section className="bg-gradient-to-r from-blue-600 to-blue-800 text-white py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="md:w-2/3">
-            <h1 className="text-4xl md:text-6xl font-bold mb-6">
-              Your Health, Our Priority
-            </h1>
-            <p className="text-xl mb-8 text-blue-100">
-              Access medical services, find blood donors, and get help when you need it most.
-              Connecting you with healthcare essentials instantly.
-            </p>
-            <div className="flex flex-wrap gap-4">
-              <Link href="/medic" className="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors flex items-center gap-2">
-                Find Medicines <ArrowRight size={20} />
-              </Link>
-              <Link href="/blood" className="bg-red-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-red-600 transition-colors flex items-center gap-2">
-                Donate Blood <Heart size={20} />
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* Hero Section */}
+      <AuroraHero />
 
       {/* Features Section */}
       <section className="py-16 bg-white">

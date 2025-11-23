@@ -13,7 +13,8 @@ import {
     updateDoc,
     getDoc,
     setDoc,
-    serverTimestamp
+    serverTimestamp,
+    arrayUnion
 } from 'firebase/firestore';
 
 export type UserType = 'USER' | 'PROVIDER';
@@ -29,24 +30,27 @@ export interface Request {
     userName: string;
     userContact: string;
     userAddress: string;
-    acceptedBy?: {
-        id: string;
+    responses?: Array<{
+        providerId: string;
         name: string;
         contact: string;
         address: string;
-    };
+        timestamp: any;
+    }>;
     createdAt: any; // Firestore Timestamp
 }
 
 interface RequestContextType {
     currentUserType: UserType;
     isLoggedIn: boolean;
+    isAdmin: boolean;
     login: (role: UserType) => void; // Kept for compatibility, but mainly handled by Auth
     logout: () => void;
     requests: Request[];
-    addRequest: (request: Omit<Request, 'id' | 'status' | 'createdAt' | 'acceptedBy'>) => Promise<void>;
+    addRequest: (request: Omit<Request, 'id' | 'status' | 'createdAt' | 'responses'>) => Promise<void>;
     respondToRequest: (requestId: string, providerDetails: { name: string; contact: string; address: string }) => Promise<void>;
-    dismissRequest: (requestId: string) => void;
+    dismissRequest: (requestId: string) => Promise<void>; // Changed to return Promise<void>
+    updateRequestStatus: (requestId: string, status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'FULFILLED' | 'CLOSED') => Promise<void>;
 }
 
 const RequestContext = createContext<RequestContextType | undefined>(undefined);
@@ -54,6 +58,7 @@ const RequestContext = createContext<RequestContextType | undefined>(undefined);
 export function RequestProvider({ children }: { children: ReactNode }) {
     const [currentUserType, setCurrentUserType] = useState<UserType>('USER');
     const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [isAdmin, setIsAdmin] = useState(false);
     const [requests, setRequests] = useState<Request[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -63,6 +68,15 @@ export function RequestProvider({ children }: { children: ReactNode }) {
             try {
                 if (user) {
                     setIsLoggedIn(true);
+
+                    // Admin Check
+                    const adminEmails = ['admin@healthseva.com', 'sarojkum822@gmail.com'];
+                    if (user.email && adminEmails.includes(user.email)) {
+                        setIsAdmin(true);
+                    } else {
+                        setIsAdmin(false);
+                    }
+
                     // Fetch user profile to get role
                     const userDocRef = doc(db, 'users', user.uid);
 
@@ -81,6 +95,7 @@ export function RequestProvider({ children }: { children: ReactNode }) {
                     }
                 } else {
                     setIsLoggedIn(false);
+                    setIsAdmin(false);
                     setCurrentUserType('USER');
                 }
             } catch (error) {
@@ -93,6 +108,14 @@ export function RequestProvider({ children }: { children: ReactNode }) {
         return () => unsubscribe();
     }, []);
 
+    // Debugging Admin Status
+    useEffect(() => {
+        if (isLoggedIn) {
+            console.log("Current User Email:", auth.currentUser?.email);
+            console.log("Is Admin:", isAdmin);
+        }
+    }, [isLoggedIn, isAdmin]);
+
     // Listen for Requests (Real-time)
     useEffect(() => {
         const q = query(collection(db, 'requests'), orderBy('createdAt', 'desc'));
@@ -102,6 +125,9 @@ export function RequestProvider({ children }: { children: ReactNode }) {
                 ...doc.data()
             })) as Request[];
             setRequests(reqs);
+        }, (error) => {
+            console.error("Error fetching requests:", error);
+            setRequests([]);
         });
 
         return () => unsubscribe();
@@ -117,11 +143,12 @@ export function RequestProvider({ children }: { children: ReactNode }) {
         await signOut(auth);
     };
 
-    const addRequest = async (newRequest: Omit<Request, 'id' | 'status' | 'createdAt' | 'acceptedBy'>) => {
+    const addRequest = async (newRequest: Omit<Request, 'id' | 'status' | 'createdAt' | 'responses'>) => {
         try {
             await addDoc(collection(db, 'requests'), {
                 ...newRequest,
                 status: 'PENDING',
+                responses: [],
                 createdAt: serverTimestamp(), // Use server timestamp
             });
         } catch (error) {
@@ -132,35 +159,57 @@ export function RequestProvider({ children }: { children: ReactNode }) {
     const respondToRequest = async (requestId: string, providerDetails: { name: string; contact: string; address: string }) => {
         try {
             const reqRef = doc(db, 'requests', requestId);
+            const response = {
+                providerId: auth.currentUser?.uid || 'unknown',
+                ...providerDetails,
+                timestamp: new Date() // Client side date for now, or could use serverTimestamp if inside object
+            };
+
             await updateDoc(reqRef, {
-                status: 'ACCEPTED',
-                acceptedBy: {
-                    id: auth.currentUser?.uid || 'unknown',
-                    ...providerDetails
-                }
+                status: 'ACCEPTED', // Status remains accepted if at least one person accepts
+                responses: arrayUnion(response)
             });
         } catch (error) {
             console.error("Error responding to request: ", error);
         }
     };
 
-    const dismissRequest = (requestId: string) => {
-        console.log(`Request ${requestId} dismissed by provider`);
-        // In real app, could add to a 'dismissedBy' array in Firestore
+    const dismissRequest = async (requestId: string) => {
+        // Remove from local state
+        setRequests(prev => prev.filter(r => r.id !== requestId));
+        // In a real app, you might also update Firestore to mark it as dismissed by the current provider
+        // For example:
+        // const reqRef = doc(db, 'requests', requestId);
+        // await updateDoc(reqRef, {
+        //     dismissedBy: arrayUnion(auth.currentUser?.uid || 'unknown')
+        // });
+    };
+
+    const updateRequestStatus = async (requestId: string, status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'FULFILLED' | 'CLOSED') => {
+        try {
+            await updateDoc(doc(db, 'requests', requestId), {
+                status: status
+            });
+        } catch (error) {
+            console.error("Error updating request status:", error);
+            throw error;
+        }
     };
 
     return (
         <RequestContext.Provider value={{
             currentUserType,
             isLoggedIn,
+            isAdmin,
             login,
             logout,
             requests,
             addRequest,
             respondToRequest,
-            dismissRequest
+            dismissRequest,
+            updateRequestStatus
         }}>
-            {children}
+            {!loading && children}
         </RequestContext.Provider>
     );
 }

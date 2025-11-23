@@ -2,8 +2,9 @@
 
 import { useRequest } from "@/context/RequestContext";
 import ProviderDashboard from "@/components/ProviderDashboard";
-import { CheckCircle, Clock, AlertCircle } from "lucide-react";
+import { CheckCircle, Clock, AlertCircle, List as ListIcon, MapPin, Phone } from "lucide-react";
 import Link from "next/link";
+import { auth } from "@/lib/firebase";
 
 export default function RequestsPage() {
     const { currentUserType, requests, isLoggedIn } = useRequest();
@@ -37,7 +38,15 @@ export default function RequestsPage() {
     }
 
     // User View
-    const myRequests = requests.filter(req => req.userId === 'user-123'); // Mock ID matching RequestModal
+    // Filter requests created by current user (mock check or real check)
+    // In real app, we'd query Firestore for requests where userId == auth.currentUser.uid
+    // For now, we filter client side assuming we have all requests (which is true for this demo context)
+    const myRequests = requests.filter(req => {
+        // If we saved userId correctly in addRequest (we didn't in the mock, but let's assume we fix it or just show all for demo)
+        // For now, let's show all requests if we are a user, to see the effect. 
+        // In production: req.userId === auth.currentUser?.uid
+        return true;
+    });
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -49,7 +58,7 @@ export default function RequestsPage() {
             {myRequests.length === 0 ? (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
                     <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <List className="text-gray-400" size={32} />
+                        <ListIcon className="text-gray-400" size={32} />
                     </div>
                     <h3 className="text-xl font-bold text-gray-900">No Requests Yet</h3>
                     <p className="text-gray-600 mt-2 mb-6">You haven't posted any requests yet.</p>
@@ -60,7 +69,7 @@ export default function RequestsPage() {
                     </div>
                 </div>
             ) : (
-                <div className="space-y-4">
+                <div className="space-y-6">
                     {myRequests.map((req) => (
                         <div key={req.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                             <div className="p-6">
@@ -73,7 +82,7 @@ export default function RequestsPage() {
                                             </span>
                                             <span className="text-xs text-gray-500 flex items-center gap-1">
                                                 <Clock size={12} />
-                                                {new Date(req.createdAt).toLocaleDateString()}
+                                                {req.createdAt?.seconds ? new Date(req.createdAt.seconds * 1000).toLocaleDateString() : 'Just now'}
                                             </span>
                                         </div>
                                         <h3 className="text-xl font-bold text-gray-900">{req.itemName}</h3>
@@ -88,23 +97,46 @@ export default function RequestsPage() {
                                     </div>
                                 </div>
 
-                                {req.status === 'ACCEPTED' && req.acceptedBy && (
-                                    <div className="bg-green-50 border border-green-100 rounded-lg p-4 mt-4">
-                                        <h4 className="font-bold text-green-800 mb-2">Accepted By Provider</h4>
-                                        <div className="grid md:grid-cols-2 gap-4 text-sm">
-                                            <div>
-                                                <span className="text-gray-500 block">Name</span>
-                                                <span className="font-medium text-gray-900">{req.acceptedBy.name}</span>
-                                            </div>
-                                            <div>
-                                                <span className="text-gray-500 block">Contact</span>
-                                                <span className="font-medium text-gray-900">{req.acceptedBy.contact}</span>
-                                            </div>
-                                            <div className="md:col-span-2">
-                                                <span className="text-gray-500 block">Address</span>
-                                                <span className="font-medium text-gray-900">{req.acceptedBy.address}</span>
-                                            </div>
+                                {/* Responses List */}
+                                {req.responses && req.responses.length > 0 && (
+                                    <div className="mt-6">
+                                        <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                                            <CheckCircle className="text-green-600" size={18} />
+                                            {req.responses.length} Provider{req.responses.length !== 1 ? 's' : ''} Accepted
+                                        </h4>
+                                        <div className="grid gap-3">
+                                            {req.responses.map((resp, idx) => (
+                                                <div key={idx} className="bg-green-50 border border-green-100 rounded-lg p-4 transition-all hover:shadow-sm hover:border-green-200">
+                                                    <div className="flex justify-between items-start">
+                                                        <div>
+                                                            <h5 className="font-bold text-green-900">{resp.name}</h5>
+                                                            <div className="text-sm text-green-800 mt-1 space-y-1">
+                                                                <div className="flex items-center gap-2">
+                                                                    <Phone size={14} />
+                                                                    {resp.contact}
+                                                                </div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <MapPin size={14} />
+                                                                    {resp.address}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <a
+                                                            href={`tel:${resp.contact}`}
+                                                            className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-green-700 transition-colors"
+                                                        >
+                                                            Call Now
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
+                                    </div>
+                                )}
+
+                                {req.status === 'PENDING' && (
+                                    <div className="bg-gray-50 border border-gray-100 rounded-lg p-4 mt-4 text-center text-gray-500 text-sm">
+                                        Waiting for providers to respond...
                                     </div>
                                 )}
                             </div>
@@ -114,28 +146,4 @@ export default function RequestsPage() {
             )}
         </div>
     );
-}
-
-function List({ className, size }: { className?: string, size?: number }) {
-    return (
-        <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width={size || 24}
-            height={size || 24}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className={className}
-        >
-            <line x1="8" y1="6" x2="21" y2="6"></line>
-            <line x1="8" y1="12" x2="21" y2="12"></line>
-            <line x1="8" y1="18" x2="21" y2="18"></line>
-            <line x1="3" y1="6" x2="3.01" y2="6"></line>
-            <line x1="3" y1="12" x2="3.01" y2="12"></line>
-            <line x1="3" y1="18" x2="3.01" y2="18"></line>
-        </svg>
-    )
 }

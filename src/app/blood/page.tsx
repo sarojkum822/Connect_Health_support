@@ -1,100 +1,84 @@
 "use client";
 
-import { useState } from "react";
-import { Droplet, Users, Plus } from "lucide-react";
-import { useRequest } from "@/context/RequestContext";
-import RequestModal from "@/components/RequestModal";
 import Link from "next/link";
+import { Heart, Users, Activity, Calendar } from "lucide-react";
+import { motion } from "framer-motion";
 
 export default function BloodPage() {
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const { isLoggedIn, currentUserType } = useRequest();
-
     return (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <div className="bg-red-600 rounded-2xl p-8 text-white mb-12 shadow-lg">
-                <div className="md:flex justify-between items-center">
-                    <div className="mb-6 md:mb-0">
-                        <h1 className="text-3xl font-bold mb-2">Blood Donation Saves Lives</h1>
-                        <p className="text-red-100 max-w-xl">
-                            Find blood donors near you or register yourself as a donor.
-                            In emergencies, post a request to notify nearby donors and hospitals instantly.
-                        </p>
-                    </div>
-                    <div className="flex flex-col sm:flex-row gap-3">
-                        {isLoggedIn && currentUserType === 'USER' ? (
-                            <button
-                                onClick={() => setIsModalOpen(true)}
-                                className="bg-white text-red-600 px-6 py-3 rounded-lg font-bold hover:bg-red-50 transition-colors flex items-center justify-center gap-2 shadow-md"
-                            >
-                                <Plus size={20} />
-                                Request Blood
-                            </button>
-                        ) : !isLoggedIn && (
-                            <Link href="/login" className="bg-white text-red-600 px-6 py-3 rounded-lg font-bold hover:bg-red-50 transition-colors flex items-center justify-center gap-2 shadow-md">
-                                <Plus size={20} />
-                                Login to Request
-                            </Link>
-                        )}
-                        <button className="bg-red-700 text-white border border-red-500 px-6 py-3 rounded-lg font-bold hover:bg-red-800 transition-colors">
-                            Register as Donor
-                        </button>
-                    </div>
+        <main className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+            <div className="max-w-7xl mx-auto">
+                <div className="text-center mb-16">
+                    <h1 className="text-4xl font-bold text-gray-900 mb-4">
+                        Blood Donation Hub
+                    </h1>
+                    <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+                        Connect with donors, find blood drives, and save lives. Your contribution matters.
+                    </p>
                 </div>
-            </div>
 
-            <div className="grid md:grid-cols-4 gap-6 mb-8">
-                {['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'].map((type) => (
-                    <button key={type} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:border-red-500 hover:shadow-md transition-all group">
-                        <div className="flex items-center justify-between">
-                            <span className="text-2xl font-bold text-gray-800 group-hover:text-red-600">{type}</span>
-                            <Droplet className="text-gray-300 group-hover:text-red-500" />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {/* Donate Blood Card */}
+                    <motion.div
+                        whileHover={{ scale: 1.02 }}
+                        className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 flex flex-col items-center text-center hover:shadow-md transition-shadow"
+                    >
+                        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-6 text-red-600">
+                            <Heart size={32} fill="currentColor" />
                         </div>
-                        <p className="text-sm text-gray-500 mt-1">Find Donors</p>
-                    </button>
-                ))}
-            </div>
+                        <h2 className="text-2xl font-bold text-gray-900 mb-4">Donate Blood</h2>
+                        <p className="text-gray-600 mb-8 flex-grow">
+                            Register as a donor to help those in need. You'll be notified when there's an emergency nearby.
+                        </p>
+                        <Link
+                            href="/blood/register"
+                            className="w-full bg-red-600 text-white py-3 px-6 rounded-xl font-semibold hover:bg-red-700 transition-colors"
+                        >
+                            Register as Donor
+                        </Link>
+                    </motion.div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-                    <Users className="text-red-600" />
-                    Recent Donors
-                </h2>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                        <thead>
-                            <tr className="border-b border-gray-200">
-                                <th className="pb-4 font-semibold text-gray-600">Name</th>
-                                <th className="pb-4 font-semibold text-gray-600">Blood Group</th>
-                                <th className="pb-4 font-semibold text-gray-600">Location</th>
-                                <th className="pb-4 font-semibold text-gray-600">Last Donation</th>
-                                <th className="pb-4 font-semibold text-gray-600">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {[1, 2, 3, 4, 5].map((i) => (
-                                <tr key={i} className="hover:bg-gray-50">
-                                    <td className="py-4">John Doe {i}</td>
-                                    <td className="py-4">
-                                        <span className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-bold">O+</span>
-                                    </td>
-                                    <td className="py-4 text-gray-600">New York, NY</td>
-                                    <td className="py-4 text-gray-600">3 months ago</td>
-                                    <td className="py-4">
-                                        <button className="text-blue-600 hover:underline font-medium">Contact</button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                    {/* Find Blood / Feed Card */}
+                    <motion.div
+                        whileHover={{ scale: 1.02 }}
+                        className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 flex flex-col items-center text-center hover:shadow-md transition-shadow"
+                    >
+                        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-6 text-blue-600">
+                            <Activity size={32} />
+                        </div>
+                        <h2 className="text-2xl font-bold text-gray-900 mb-4">Blood Requests</h2>
+                        <p className="text-gray-600 mb-8 flex-grow">
+                            View urgent blood requests and donation campaigns from hospitals in your area.
+                        </p>
+                        <Link
+                            href="/blood/feed"
+                            className="w-full bg-blue-600 text-white py-3 px-6 rounded-xl font-semibold hover:bg-blue-700 transition-colors"
+                        >
+                            View Requests
+                        </Link>
+                    </motion.div>
+
+                    {/* For Hospitals Card */}
+                    <motion.div
+                        whileHover={{ scale: 1.02 }}
+                        className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 flex flex-col items-center text-center hover:shadow-md transition-shadow"
+                    >
+                        <div className="w-16 h-16 bg-teal-100 rounded-full flex items-center justify-center mb-6 text-teal-600">
+                            <Calendar size={32} />
+                        </div>
+                        <h2 className="text-2xl font-bold text-gray-900 mb-4">For Hospitals</h2>
+                        <p className="text-gray-600 mb-8 flex-grow">
+                            Organize blood drives and manage emergency requests. Connect with registered donors.
+                        </p>
+                        <Link
+                            href="/provider/blood"
+                            className="w-full bg-teal-600 text-white py-3 px-6 rounded-xl font-semibold hover:bg-teal-700 transition-colors"
+                        >
+                            Provider Dashboard
+                        </Link>
+                    </motion.div>
                 </div>
             </div>
-
-            <RequestModal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                defaultType="BLOOD"
-            />
-        </div>
+        </main>
     );
 }
